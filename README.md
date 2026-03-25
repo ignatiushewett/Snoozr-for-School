@@ -1,16 +1,15 @@
 ![waking-up-cat](https://github.com/user-attachments/assets/98bacec3-5c1c-4d99-bf02-9a66e915fcec)
-# Snoozr: Prototype Project
-Built by Ignatius Hewett using Sonnet 4.6
 
-## GitHubs Pages
 https://ignatiushewett.github.io/Snoozr-for-School/
+
+Built by Ignatius H. using Sonnet 4.6 via Claude
 
 ## About
 Snoozr is a web-based progressive sleep tracker made with building strong sleep habits over perfecting unrealistic schedules. 
 
 Reasearch reveals a common issue with traditional sleep trackers are users obsessing over strict sleeping goals, which has lead to insomnia and increased anxiety.
 
-This is an early 'proof of concept' or prototype heavily build using Claude's Sonnet 4.6. 
+This is an early 'proof of concept' or prototype heavily built using Claude's Sonnet 4.6. 
 
 ## Features
 - User Authenication
