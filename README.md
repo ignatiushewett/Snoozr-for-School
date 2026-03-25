@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/98bacec3-5c1c-4d99-bf02-9a66e915fcec" width="100"/>
-</p>
+<img src="https://github.com/user-attachments/assets/98bacec3-5c1c-4d99-bf02-9a66e915fcec" width="250"/>
 
 ## Snoozr: Progressive Sleep Tracking
 
