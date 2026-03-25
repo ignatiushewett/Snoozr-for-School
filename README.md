@@ -1,3 +1,4 @@
+![waking-up-cat](https://github.com/user-attachments/assets/98bacec3-5c1c-4d99-bf02-9a66e915fcec)
 # Snoozr: Prototype Project
 Built by Ignatius Hewett using Sonnet 4.6
 
