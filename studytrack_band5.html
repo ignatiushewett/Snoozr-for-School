@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyTrack</title>
+
+  <!--
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  StudyTrack — HSC Software Engineering Task #2 Prototype  ║
+  ║  Student: [YOUR NAME]          Date: March 2026           ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  CRUD STATUS:                                             ║
+  ║    CREATE ✓  Log a new study session                      ║
+  ║    READ   ✓  View sessions table with search              ║
+  ║    UPDATE ✓  Edit a session using the inline edit form    ║
+  ║    DELETE ✓  Delete a session (with browser confirmation) ║
+  ║                                                           ║
+  ║  SECURITY:                                                ║
+  ║    Passwords are hashed before storage (simulateHash).    ║
+  ║    Plain-text password is never saved.                    ║
+  ║    User input is escaped before inserting into the DOM.   ║
+  ║                                                           ║
+  ║  DATA STORE: localStorage (simulates a database)          ║
+  ║    SQL equivalents are shown in comments near each        ║
+  ║    data function. See the TODO comments for how to        ║
+  ║    add an ORM comparison to reach Band 5.                 ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  HOW TO USE THIS FILE:                                    ║
+  ║    1. Read the TODO comments — they tell you exactly      ║
+  ║       what to add to reach Band 5.                        ║
+  ║    2. Each TODO says which Band it unlocks.               ║
+  ║    3. Demo login: demo@studytrack.com / Demo1234!         ║
+  ╚═══════════════════════════════════════════════════════════╝
+  -->
+
+  <style>
+    /* ─────────────────────────────────────────────────
+       CSS VARIABLES
+       Defining colours and sizes once here so they are
+       easy to change across the whole page.
+
+       TODO (Band 5): Expand this list to cover shadows,
+       border-radius sizes, font stacks, and transition
+       speeds — the Band 5 version uses ~25 variables to
+       keep every visual detail consistent.
+    ───────────────────────────────────────────────── */
+    :root {
+      --navy:       #1a3a5c;
+      --navy-dark:  #122844;
+      --green:      #2e7d52;
+      --green-pale: #e8f5ee;
+      --red:        #c0392b;
+      --red-pale:   #fdecea;
+      --amber:      #e8960a;
+      --amber-pale: #fef8e7;
+      --border:     #d4dce0;
+      --bg:         #f2f4f5;
+      --white:      #ffffff;
+      --text:       #1e2b30;
+      --text-soft:  #5c6e75;
+      --radius:     5px;
+    }
+
+    /* ─── Reset ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    /* ─── Page visibility ────────────────────────────── */
+    .page     { display: none; }
+    .page.active { display: block; }
+
+    /* ─── AUTH PAGES ─────────────────────────────────── */
+    .auth-outer {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .auth-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 36px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.09);
+    }
+
+    .auth-logo {
+      font-size: 22px;
+      font-weight: bold;
+      color: var(--navy);
+      margin-bottom: 4px;
+    }
+
+    .auth-tagline {
+      color: var(--text-soft);
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+
+    /* ─── APP SHELL ──────────────────────────────────── */
+
+    /*
+      The app shell uses position:fixed for the topbar
+      and sidebar, and left-margin on the main content.
+
+      TODO (Band 5): Replace this with a CSS Grid layout
+      so the topbar and sidebar are part of the document
+      flow rather than being positioned absolutely:
+
+        .app-shell {
+          display: grid;
+          grid-template-columns: 220px 1fr;
+          grid-template-rows: 54px 1fr;
+          min-height: 100vh;
+        }
+        .topbar  { grid-column: 1 / -1; position: sticky; top: 0; }
+        .sidebar { grid-row: 2; }
+        .main    { grid-row: 2; }
+
+      This approach is more robust and avoids z-index issues.
+    */
+
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 50px;
+      background: var(--navy);
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      gap: 12px;
+      z-index: 100;
+    }
+
+    .topbar-title {
+      font-size: 17px;
+      font-weight: bold;
+      color: white;
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    .topbar-user {
+      font-size: 13px;
+      color: rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 50px;
+      left: 0;
+      bottom: 0;
+      width: 200px;
+      background: var(--navy-dark);
+      padding: 14px 8px;
+      overflow-y: auto;
+      z-index: 90;
+    }
+
+    .nav-section-label {
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      color: rgba(255,255,255,0.3);
+      padding: 0 8px;
+      margin: 14px 0 6px;
+    }
+    .nav-section-label:first-child { margin-top: 0; }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 9px 10px;
+      background: none;
+      border: none;
+      border-radius: var(--radius);
+      color: rgba(255,255,255,0.65);
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.12s, color 0.12s;
+    }
+    .nav-link:hover  { background: rgba(255,255,255,0.08); color: white; }
+    .nav-link.active { background: rgba(255,255,255,0.13); color: white; font-weight: bold; }
+
+    /* TODO (Band 5): Add aria-current="page" to the active
+       nav button dynamically in showSection(). This helps
+       screen readers understand which page is current. */
+
+    .main {
+      margin-top: 50px;
+      margin-left: 200px;
+      padding: 26px 28px;
+    }
+
+    /* ─── Section header ─────────────────────────────── */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--navy);
+    }
+
+    .section-sub {
+      font-size: 13px;
+      color: var(--text-soft);
+      margin-top: 2px;
+    }
+
+    /* ─── Cards ──────────────────────────────────────── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      margin-bottom: 18px;
+    }
+
+    .card-head {
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-weight: bold;
+      color: var(--navy);
+      font-size: 14px;
+    }
+
+    .card-body { padding: 18px; }
+
+    /* ─── Stats row ──────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    /*
+      TODO (Band 5): Add a fourth stat card here showing
+      "Hours this week" — sessions logged in the last 7 days.
+      Change the grid to: grid-template-columns: repeat(4, 1fr);
+      You'll need to filter sessions by comparing their date
+      to (new Date() - 7 days) using Date objects.
+    */
+
+    .stat-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--navy);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: var(--navy);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-soft);
+      margin-top: 2px;
+    }
+
+    /* ─── Form elements ──────────────────────────────── */
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-group { margin-bottom: 13px; }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--text);
+      margin-bottom: 5px;
+    }
+
+    .req { color: var(--red); }
+
+    .form-control {
+      width: 100%;
+      padding: 8px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--white);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-control:focus {
+      border-color: var(--navy);
+      box-shadow: 0 0 0 2px rgba(26,58,92,0.12);
+    }
+
+    /*
+      TODO (Band 5): Add an .is-error modifier class that
+      turns the border red when validation fails:
+        .form-control.is-error { border-color: var(--red); }
+      Then apply/remove this class in your validation logic
+      instead of only showing a text error message.
+    */
+
+    textarea.form-control { resize: vertical; min-height: 72px; }
+
+    .form-hint {
+      font-size: 12px;
+      color: var(--text-soft);
+      margin-top: 3px;
+    }
+
+    /* Per-field error message */
+    .field-err {
+      font-size: 12px;
+      color: var(--red);
+      margin-top: 3px;
+      display: none;
+    }
+
+    /* Global error/success banners */
+    .msg-error {
+      background: var(--red-pale);
+      border: 1px solid rgba(192,57,43,0.2);
+      border-radius: var(--radius);
+      color: var(--red);
+      padding: 9px 12px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    .msg-success {
+      background: var(--green-pale);
+      border: 1px solid rgba(46,125,82,0.2);
+      border-radius: var(--radius);
+      color: var(--green);
+      padding: 9px 12px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    /*
+      TODO (Band 5): Replace the .msg-success and .msg-error
+      banners with toast notifications — small pop-up messages
+      that appear in the corner of the screen and fade away
+      automatically after ~3 seconds. They give feedback
+      without interrupting the user's workflow.
+
+      Basic toast structure:
+        .toast-wrap { position: fixed; bottom: 20px; right: 20px; }
+        .toast { background: #1a3a5c; color: white; padding: 12px 16px;
+                 border-radius: 6px; margin-top: 8px; animation: fadeIn 0.2s; }
+    */
+
+    /* ─── Buttons ─────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: 1.5px solid transparent;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.12s;
+      line-height: 1;
+    }
+    .btn:hover  { opacity: 0.85; }
+    .btn:active { opacity: 0.7;  }
+
+    .btn-primary { background: var(--navy);  color: white; }
+    .btn-green   { background: var(--green); color: white; }
+    .btn-red     { background: var(--red);   color: white; }
+    .btn-outline {
+      background: transparent;
+      color: var(--navy);
+      border-color: var(--navy);
+    }
+    .btn-sm { padding: 5px 11px; font-size: 12px; }
+    .btn-block { width: 100%; justify-content: center; }
+
+    /* ─── Table ──────────────────────────────────────── */
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+    thead tr { background: var(--navy); }
+    thead th {
+      padding: 10px 13px;
+      text-align: left;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    tbody tr { border-bottom: 1px solid #eee; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f7f9fb; }
+    tbody td { padding: 10px 13px; vertical-align: middle; }
+
+    /* ─── Badge ──────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    /*
+      TODO (Band 5): Store a 'colour' property on each subject
+      object and use it to apply a specific badge class per
+      subject. This makes it easier to tell subjects apart at
+      a glance. Add colour options when creating a subject:
+
+        const COLOURS = {
+          blue:   { bg: '#dbeafe', text: '#1e40af' },
+          green:  { bg: '#d1fae5', text: '#065f46' },
+          amber:  { bg: '#fef3c7', text: '#92400e' },
+          red:    { bg: '#fee2e2', text: '#991b1b' },
+        };
+    */
+
+    /* ─── Filter bar ─────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+      align-items: center;
+    }
+
+    .filter-bar .form-control { margin-bottom: 0; }
+
+    /* ─── Inline edit form ───────────────────────────── */
+    /*
+      Band 4 uses an inline edit form that appears below the
+      sessions table when the user clicks Edit on a row.
+
+      TODO (Band 5): Replace this with a modal overlay dialog.
+      A modal keeps the user on the same screen and feels more
+      professional. See the Band 5 prototype for how to build
+      a modal using a fixed-position backdrop + centred box.
+    */
+    .edit-form-wrap {
+      background: var(--amber-pale);
+      border: 1.5px solid var(--amber);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-top: 16px;
+      display: none;
+    }
+
+    .edit-form-wrap.visible { display: block; }
+
+    .edit-form-title {
+      font-weight: bold;
+      color: var(--navy);
+      margin-bottom: 14px;
+      font-size: 14px;
+    }
+
+    /* ─── Info box (SQL/security notes) ─────────────── */
+    .info-box {
+      background: #1a2e3a;
+      border-radius: var(--radius);
+      padding: 12px 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #93c5a8;
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+    .info-box .c  { color: rgba(255,255,255,0.3); }
+    .info-box .k  { color: #7ec8e3; }
+    .info-box .v  { color: #f0c96e; }
+
+    /* ─── Empty state ────────────────────────────────── */
+    .empty {
+      text-align: center;
+      padding: 36px 20px;
+      color: var(--text-soft);
+    }
+    .empty-icon { font-size: 34px; margin-bottom: 8px; }
+    .empty-text { font-size: 14px; }
+
+    /* ─── Password strength ──────────────────────────── */
+    .pw-bars { display: flex; gap: 3px; margin-top: 5px; }
+    .pw-bar  { height: 4px; flex: 1; border-radius: 2px; background: var(--border); transition: background 0.18s; }
+
+    /* ─── Accessibility ──────────────────────────────── */
+    *:focus-visible {
+      outline: 2px solid var(--amber);
+      outline-offset: 2px;
+    }
+
+    /*
+      TODO (Band 5): Add a prefers-reduced-motion media query
+      to disable transitions for users who prefer less motion:
+
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after { transition-duration: 0.01ms !important; }
+        }
+    */
+  </style>
+</head>
+<body>
+
+
+<!-- ═══════════════════════════════════════════════════
+  PAGE: LOGIN
+═══════════════════════════════════════════════════ -->
+<div class="page active" id="page-login">
+  <div class="auth-outer">
+    <div class="auth-card">
+      <div class="auth-logo">📚 StudyTrack</div>
+      <div class="auth-tagline">Track your study sessions by subject.</div>
+
+      <div class="msg-error" id="loginErr" role="alert"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="loginEmail">
+          Email address <span class="req">*</span>
+        </label>
+        <input class="form-control" type="email" id="loginEmail"
+          placeholder="you@example.com" autocomplete="email"
+          aria-required="true">
+        <div class="field-err" id="loginEmailErr"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="loginPw">
+          Password <span class="req">*</span>
+        </label>
+        <input class="form-control" type="password" id="loginPw"
+          placeholder="Your password" autocomplete="current-password"
+          aria-required="true">
+        <div class="field-err" id="loginPwErr"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" style="margin-bottom:14px"
+        onclick="doLogin()">
+        Sign In
+      </button>
+
+      <p style="text-align:center;font-size:13px;color:var(--text-soft)">
+        No account?
+        <button class="btn btn-outline btn-sm" onclick="showPage('page-register')"
+          style="margin-left:6px">Create account</button>
+      </p>
+
+      <!-- Demo credentials notice -->
+      <div style="margin-top:18px;padding:10px 12px;background:var(--amber-pale);
+        border:1px solid rgba(232,150,10,0.3);border-radius:var(--radius);
+        font-size:12px;color:#7a5000">
+        <strong>Demo login:</strong> demo@studytrack.com / Demo1234!
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════
+  PAGE: REGISTER
+═══════════════════════════════════════════════════ -->
+<div class="page" id="page-register">
+  <div class="auth-outer">
+    <div class="auth-card">
+      <div class="auth-logo">📚 StudyTrack</div>
+      <div class="auth-tagline">Create your account to get started.</div>
+
+      <div class="msg-error" id="registerErr" role="alert"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="regFirst">First name <span class="req">*</span></label>
+          <input class="form-control" type="text" id="regFirst"
+            placeholder="Jane" autocomplete="given-name" aria-required="true">
+          <div class="field-err" id="regFirstErr"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="regLast">Last name <span class="req">*</span></label>
+          <input class="form-control" type="text" id="regLast"
+            placeholder="Smith" autocomplete="family-name" aria-required="true">
+          <div class="field-err" id="regLastErr"></div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="regEmail">Email address <span class="req">*</span></label>
+        <input class="form-control" type="email" id="regEmail"
+          placeholder="you@example.com" autocomplete="email" aria-required="true">
+        <div class="field-err" id="regEmailErr"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="regPw">Password <span class="req">*</span></label>
+        <input class="form-control" type="password" id="regPw"
+          placeholder="Min. 8 characters, include a number"
+          autocomplete="new-password" aria-required="true"
+          oninput="updatePwStrength(this.value)">
+        <div class="pw-bars" aria-hidden="true">
+          <div class="pw-bar" id="pwBar1"></div>
+          <div class="pw-bar" id="pwBar2"></div>
+          <div class="pw-bar" id="pwBar3"></div>
+          <div class="pw-bar" id="pwBar4"></div>
+        </div>
+        <div class="field-err" id="regPwErr"></div>
+        <div class="form-hint">At least 8 characters including a number.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="regConfirm">Confirm password <span class="req">*</span></label>
+        <input class="form-control" type="password" id="regConfirm"
+          placeholder="Repeat your password" autocomplete="new-password" aria-required="true">
+        <div class="field-err" id="regConfirmErr"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" style="margin-bottom:14px"
+        onclick="doRegister()">
+        Create Account
+      </button>
+
+      <p style="text-align:center;font-size:13px;color:var(--text-soft)">
+        Already have an account?
+        <button class="btn btn-outline btn-sm" onclick="showPage('page-login')"
+          style="margin-left:6px">Sign in</button>
+      </p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════
+  APP: topbar + sidebar + main content
+═══════════════════════════════════════════════════ -->
+<div class="page" id="page-app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <span class="topbar-title">📚 StudyTrack</span>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-user">
+      <span id="topbarName"></span>
+      <button class="btn btn-outline btn-sm"
+        style="color:rgba(255,255,255,0.8);border-color:rgba(255,255,255,0.3)"
+        onclick="doLogout()">
+        Sign out
+      </button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar" aria-label="Main navigation">
+    <div class="nav-section-label">Main</div>
+    <button class="nav-link active" id="nav-dashboard"
+      onclick="showSection('dashboard')">
+      🏠 Dashboard
+    </button>
+    <button class="nav-link" id="nav-sessions"
+      onclick="showSection('sessions')">
+      📋 Sessions
+    </button>
+    <button class="nav-link" id="nav-subjects"
+      onclick="showSection('subjects')">
+      📖 Subjects
+    </button>
+
+    <!--
+      TODO (Band 5): Add a Goals page link here and build
+      a view where users can set a weekly hour target for
+      each subject, then see their progress as a bar.
+
+      <button class="nav-link" id="nav-goals"
+        onclick="showSection('goals')">
+        🎯 Goals
+      </button>
+    -->
+
+    <div class="nav-section-label">Account</div>
+    <button class="nav-link" id="nav-settings"
+      onclick="showSection('settings')">
+      ⚙ Settings
+    </button>
+
+    <!-- Info panel (dev reference) -->
+    <div style="margin-top:28px">
+      <div class="info-box">
+        <span class="c">// Data store</span><br>
+        <span class="k">type:</span> <span class="v">"localStorage"</span><br>
+        <span class="c">// Replace with:</span><br>
+        <span class="c">// PostgreSQL + Flask</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ─── SECTION: DASHBOARD ─────────────────────── -->
+    <section id="section-dashboard">
+
+      <div class="section-header">
+        <div>
+          <div class="section-title" id="dashGreeting">Dashboard</div>
+          <div class="section-sub">Your study overview.</div>
+        </div>
+        <button class="btn btn-primary" onclick="showSection('sessions')">
+          + Log Session
+        </button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-value" id="statSessions">0</div>
+          <div class="stat-label">Total sessions</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statHours">0h</div>
+          <div class="stat-label">Total study hours</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statSubjects">0</div>
+          <div class="stat-label">Subjects tracked</div>
+        </div>
+      </div>
+
+      <!-- SQL reference box -->
+      <div class="info-box">
+        <span class="c">-- SQL to load this user's sessions (READ):</span><br>
+        <span class="k">SELECT</span> s.id, s.date, s.duration_mins, s.notes, sub.name<br>
+        <span class="k">FROM</span> sessions s<br>
+        <span class="k">JOIN</span> subjects sub <span class="k">ON</span> s.subject_id = sub.id<br>
+        <span class="k">WHERE</span> s.user_id = <span class="v">:current_user_id</span><br>
+        <span class="k">ORDER BY</span> s.date <span class="k">DESC</span>;<br>
+        <br>
+        <span class="c">-- TODO (Band 5): Add the SQLAlchemy ORM equivalent:</span><br>
+        <span class="c">-- sessions = Session.query\</span><br>
+        <span class="c">--   .filter_by(user_id=current_user.id)\</span><br>
+        <span class="c">--   .order_by(Session.date.desc()).all()</span>
+      </div>
+
+      <!-- Recent sessions -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Recent Sessions</span>
+          <button class="btn btn-outline btn-sm"
+            onclick="showSection('sessions')">View all →</button>
+        </div>
+        <div id="dashRecent">
+          <div class="empty">
+            <div class="empty-icon">📋</div>
+            <div class="empty-text">No sessions yet. Go to Sessions to log one.</div>
+          </div>
+        </div>
+      </div>
+
+      <!--
+        TODO (Band 5): Add a bar chart below showing total
+        hours per subject. Loop through mySessions() grouped
+        by subject, calculate each subject's total minutes,
+        then build proportional bars using CSS width percentages.
+
+        <div class="card">
+          <div class="card-head"><span class="card-title">Hours by Subject</span></div>
+          <div class="card-body" id="subjectChart">...</div>
+        </div>
+      -->
+
+    </section>
+
+
+    <!-- ─── SECTION: SESSIONS ──────────────────────── -->
+    <section id="section-sessions" style="display:none">
+
+      <div class="section-header">
+        <div>
+          <div class="section-title">Study Sessions</div>
+          <div class="section-sub">Create, view, edit and delete your sessions here.</div>
+        </div>
+      </div>
+
+      <!-- ADD SESSION FORM -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Log a New Session</span>
+        </div>
+        <div class="card-body">
+          <div class="msg-error"   id="sessionErr"></div>
+          <div class="msg-success" id="sessionOk"></div>
+
+          <!--
+            This is an inline form — the add form stays on
+            the page at all times above the table.
+
+            TODO (Band 5): Move this into a modal so the
+            table is always visible and the form pops up
+            on top when the user clicks "+ Log Session".
+          -->
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="sDate">
+                Date <span class="req">*</span>
+              </label>
+              <input class="form-control" type="date" id="sDate" aria-required="true">
+              <div class="field-err" id="sDateErr"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="sSubject">
+                Subject <span class="req">*</span>
+              </label>
+              <select class="form-control" id="sSubject" aria-required="true">
+                <option value="">— select subject —</option>
+              </select>
+              <div class="field-err" id="sSubjectErr"></div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="sHours">
+                Hours <span class="req">*</span>
+              </label>
+              <input class="form-control" type="number" id="sHours"
+                min="0" max="12" value="1" placeholder="0">
+              <div class="field-err" id="sDurErr"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="sMins">Minutes</label>
+              <select class="form-control" id="sMins">
+                <option value="0">0 min</option>
+                <option value="15">15 min</option>
+                <option value="30" selected>30 min</option>
+                <option value="45">45 min</option>
+              </select>
+            </div>
+          </div>
+
+          <!--
+            TODO (Band 5): Add a "Productivity Mood" field here.
+            Options: Highly focused / Good progress / Average /
+            Distracted. Store it as 'mood' on the session object.
+            Display a matching emoji in the table.
+
+            <div class="form-group">
+              <label class="form-label" for="sMood">Mood</label>
+              <select class="form-control" id="sMood">
+                <option value="focused">🔥 Highly focused</option>
+                <option value="good" selected>😊 Good progress</option>
+                <option value="average">😐 Average</option>
+                <option value="distracted">😓 Distracted</option>
+              </select>
+            </div>
+          -->
+
+          <div class="form-group">
+            <label class="form-label" for="sNotes">Notes (optional)</label>
+            <textarea class="form-control" id="sNotes"
+              placeholder="What did you cover?" maxlength="300"></textarea>
+            <div class="form-hint">Max 300 characters.</div>
+          </div>
+
+          <button class="btn btn-primary" onclick="addSession()">Save Session</button>
+        </div>
+      </div>
+
+      <!-- SESSIONS TABLE -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">All Sessions</span>
+        </div>
+        <div class="card-body" style="padding-bottom:0">
+
+          <!-- Filter bar -->
+          <div class="filter-bar">
+            <input class="form-control" type="search" id="searchInput"
+              placeholder="Search subject or notes…" style="flex:1"
+              aria-label="Search sessions" oninput="renderTable()">
+            <select class="form-control" id="filterSubject"
+              aria-label="Filter by subject" style="width:180px"
+              onchange="renderTable()">
+              <option value="">All subjects</option>
+            </select>
+
+            <!--
+              TODO (Band 5): Add a sort dropdown here:
+              <select class="form-control" id="sortSessions" style="width:150px"
+                onchange="renderTable()">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="longest">Longest first</option>
+              </select>
+            -->
+          </div>
+
+          <div class="table-wrap">
+            <table aria-label="Study sessions">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Subject</th>
+                  <th>Duration</th>
+                  <th>Notes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="sessionsBody"></tbody>
+            </table>
+          </div>
+
+          <div style="padding:10px 0;font-size:12px;color:var(--text-soft)">
+            <span id="sessionsCount">0 sessions</span>
+            <span style="margin-left:16px;font-family:'Courier New',monospace"
+              id="sqlHint"></span>
+          </div>
+        </div>
+
+        <!-- INLINE EDIT FORM (appears here when Edit is clicked) -->
+        <div class="edit-form-wrap" id="editFormWrap">
+          <div class="edit-form-title">✏ Editing Session</div>
+          <input type="hidden" id="editId">
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="eDate">Date <span class="req">*</span></label>
+              <input class="form-control" type="date" id="eDate">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="eSubject">Subject <span class="req">*</span></label>
+              <select class="form-control" id="eSubject">
+                <option value="">— select —</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="eHours">Hours <span class="req">*</span></label>
+              <input class="form-control" type="number" id="eHours" min="0" max="12">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="eMins">Minutes</label>
+              <select class="form-control" id="eMins">
+                <option value="0">0 min</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="eNotes">Notes</label>
+            <textarea class="form-control" id="eNotes" maxlength="300"></textarea>
+          </div>
+          <div class="msg-error" id="editErr"></div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-green" onclick="saveEdit()">Save Changes</button>
+            <button class="btn btn-outline" onclick="cancelEdit()">Cancel</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ─── SECTION: SUBJECTS ──────────────────────── -->
+    <section id="section-subjects" style="display:none">
+
+      <div class="section-header">
+        <div>
+          <div class="section-title">Subjects</div>
+          <div class="section-sub">Add and manage the subjects you track.</div>
+        </div>
+      </div>
+
+      <!-- Add subject form -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Add a Subject</span>
+        </div>
+        <div class="card-body">
+          <div class="msg-error"   id="subjectErr"></div>
+          <div class="msg-success" id="subjectOk"></div>
+
+          <div style="display:flex;gap:12px;align-items:flex-end">
+            <div class="form-group" style="flex:1;margin-bottom:0">
+              <label class="form-label" for="subName">Subject name <span class="req">*</span></label>
+              <input class="form-control" type="text" id="subName"
+                placeholder="e.g. Mathematics Advanced">
+              <div class="field-err" id="subNameErr"></div>
+            </div>
+            <button class="btn btn-primary" onclick="addSubject()"
+              style="flex-shrink:0">
+              Add Subject
+            </button>
+          </div>
+
+          <!--
+            TODO (Band 5): Add a colour picker select here so
+            each subject gets its own badge colour. Store the
+            chosen colour in the subject object alongside the name.
+          -->
+        </div>
+      </div>
+
+      <!-- Subjects table -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Your Subjects</span>
+        </div>
+        <div class="table-wrap">
+          <table aria-label="Subjects">
+            <thead>
+              <tr>
+                <th>Subject Name</th>
+                <th>Sessions</th>
+                <th>Total Hours</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="subjectsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- ─── SECTION: SETTINGS ─────────────────────── -->
+    <section id="section-settings" style="display:none">
+
+      <div class="section-header">
+        <div>
+          <div class="section-title">Settings</div>
+          <div class="section-sub">Update your profile details.</div>
+        </div>
+      </div>
+
+      <div class="card" style="max-width:480px">
+        <div class="card-head"><span class="card-title">Profile</span></div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="setFirst">First name</label>
+              <input class="form-control" type="text" id="setFirst">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="setLast">Last name</label>
+              <input class="form-control" type="text" id="setLast">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="setEmail">Email (read only)</label>
+            <input class="form-control" type="email" id="setEmail" disabled
+              style="background:#f5f5f5;cursor:not-allowed">
+          </div>
+          <div class="msg-success" id="profileOk"></div>
+          <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+        </div>
+      </div>
+
+      <div class="card" style="max-width:480px">
+        <div class="card-head"><span class="card-title">Change Password</span></div>
+        <div class="card-body">
+
+          <!-- Security info box -->
+          <div class="info-box" style="margin-bottom:16px">
+            <span class="c">// Security: passwords are hashed before storage.</span><br>
+            <span class="c">// This prototype uses simulateHash() — a simplified</span><br>
+            <span class="c">// version. In a real Flask backend use:</span><br>
+            <span class="k">from</span> flask_bcrypt <span class="k">import</span> Bcrypt<br>
+            hash = bcrypt.<span class="v">generate_password_hash</span>(pw)<br>
+            <span class="c">// Verify: bcrypt.check_password_hash(hash, input)</span><br>
+            <br>
+            <span class="c">// TODO (Band 5): Replace simulateHash() with real</span><br>
+            <span class="c">// server-side bcrypt so the plain password never</span><br>
+            <span class="c">// leaves the client in a recoverable form.</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="curPw">Current password</label>
+            <input class="form-control" type="password" id="curPw">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newPw">New password</label>
+            <input class="form-control" type="password" id="newPw">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="confPw">Confirm new password</label>
+            <input class="form-control" type="password" id="confPw">
+          </div>
+          <div class="msg-error"   id="pwErr"></div>
+          <div class="msg-success" id="pwOk"></div>
+          <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+        </div>
+      </div>
+
+      <!--
+        TODO (Band 5): Add a "Data & Export" card here:
+        - Export all sessions as a CSV file
+          (use Blob + URL.createObjectURL + anchor click)
+        - A "Danger Zone" section with a button to delete
+          all data for the current user
+
+        This also gives you material to discuss data management
+        in your Section A report.
+      -->
+
+    </section>
+
+  </main>
+</div><!-- end #page-app -->
+
+
+<!-- ═══════════════════════════════════════════════════
+  JAVASCRIPT
+═══════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════
+// PART 1: DATA LAYER
+//
+// All localStorage reads and writes are grouped here.
+// In a real project these would be fetch() calls to a
+// Flask/Express backend, which would run SQL queries
+// against a PostgreSQL or SQLite database.
+//
+// Schema modelled:
+//   users    { id, first, last, email, passwordHash }
+//   subjects { id, userId, name }
+//   sessions { id, userId, subjectId, date,
+//              durationMins, notes, createdAt }
+//
+// TODO (Band 5): Pull these functions into a separate
+// db.js file and wrap them in an exported object so
+// the rest of the code imports them cleanly:
+//   import { getSessions, saveSessions } from './db.js';
+// ═══════════════════════════════════════════════════
+
+const KEYS = {
+  users:     'st4_users',
+  subjects:  'st4_subjects',
+  sessions:  'st4_sessions',
+  currentId: 'st4_uid',
+};
+
+function loadJSON(key)      { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
+function saveJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+function allUsers()    { return loadJSON(KEYS.users)    || []; }
+function allSubjects() { return loadJSON(KEYS.subjects) || []; }
+function allSessions() { return loadJSON(KEYS.sessions) || []; }
+
+// Filter helpers — only this user's records
+// SQL: SELECT * FROM subjects WHERE user_id = ?
+function mySubjects() { return allSubjects().filter(s => s.userId === currentUser.id); }
+
+// SQL: SELECT * FROM sessions WHERE user_id = ?
+function mySessions() { return allSessions().filter(s => s.userId === currentUser.id); }
+
+function saveUsers(d)    { saveJSON(KEYS.users, d); }
+function saveSubjects(d) { saveJSON(KEYS.subjects, d); }
+function saveSessions(d) { saveJSON(KEYS.sessions, d); }
+
+// Generate a simple unique ID
+// (A real database would use AUTO_INCREMENT or UUID())
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+
+// ═══════════════════════════════════════════════════
+// PART 2: PASSWORD HASHING
+//
+// Passwords must never be stored in plain text.
+// This function produces a consistent scrambled string
+// from the password so we can verify it later without
+// storing the original.
+//
+// !! This is NOT real cryptography — it is a teaching
+// placeholder. A real app uses bcrypt on the server:
+//   from flask_bcrypt import Bcrypt
+//   bcrypt = Bcrypt(app)
+//   hash  = bcrypt.generate_password_hash(password)
+//   valid = bcrypt.check_password_hash(hash, attempt)
+//
+// TODO (Band 5): Replace this entirely with server-side
+// password hashing. The plain password should never
+// leave the browser in a recoverable form.
+// ═══════════════════════════════════════════════════
+
+function simulateHash(password) {
+  // Deterministic but not cryptographically secure.
+  const salt = 'st4_hsc_2026_' + password.length;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < (salt + password).length; i++) {
+    h ^= (salt + password).charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return '$sim4$' + h.toString(16).padStart(8, '0') +
+    btoa(password.split('').reverse().join('')).replace(/=/g, '').slice(0, 20);
+}
+
+function checkHash(password, hash) {
+  return simulateHash(password) === hash;
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 3: CURRENT USER SESSION
+// ═══════════════════════════════════════════════════
+
+let currentUser = null;
+
+function loadSavedUser() {
+  const id = localStorage.getItem(KEYS.currentId);
+  if (!id) return null;
+  return allUsers().find(u => u.id === id) || null;
+}
+
+function loginAs(user) {
+  currentUser = user;
+  localStorage.setItem(KEYS.currentId, user.id);
+}
+
+function clearSession() {
+  currentUser = null;
+  localStorage.removeItem(KEYS.currentId);
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 4: SEED DEMO DATA
+// ═══════════════════════════════════════════════════
+
+function seedDemo() {
+  if (allUsers().find(u => u.email === 'demo@studytrack.com')) return;
+
+  const uid    = 'demo_b4_001';
+  const subIds = ['sub_maths', 'sub_eng', 'sub_soft'];
+  const today  = new Date();
+
+  // Demo user
+  const users = allUsers();
+  users.push({
+    id: uid, first: 'Alex', last: 'Demo',
+    email: 'demo@studytrack.com',
+    passwordHash: simulateHash('Demo1234!'),
+  });
+  saveUsers(users);
+
+  // Demo subjects
+  const subs = allSubjects();
+  [['sub_maths','Mathematics Advanced'], ['sub_eng','English Advanced'],
+   ['sub_soft','Software Engineering']].forEach(([id, name]) => {
+    subs.push({ id, userId: uid, name });
+  });
+  saveSubjects(subs);
+
+  // Demo sessions (last 10 days)
+  const sessions = allSessions();
+  const seedData = [
+    { sub: 'sub_soft', d: 0, dur: 90,  notes: 'Built the login form' },
+    { sub: 'sub_maths', d: 1, dur: 120, notes: 'Integration by parts practice' },
+    { sub: 'sub_eng',  d: 2, dur: 75,  notes: 'Module B essay outline' },
+    { sub: 'sub_soft', d: 3, dur: 105, notes: 'Connected localStorage DB layer' },
+    { sub: 'sub_maths', d: 5, dur: 90,  notes: 'Past paper — Section I timed' },
+    { sub: 'sub_eng',  d: 7, dur: 60,  notes: 'Annotation of related text' },
+  ];
+
+  seedData.forEach(item => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - item.d);
+    sessions.push({
+      id: genId(), userId: uid, subjectId: item.sub,
+      date: d.toISOString().split('T')[0],
+      durationMins: item.dur, notes: item.notes,
+      createdAt: d.toISOString(),
+    });
+  });
+  saveSessions(sessions);
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 5: PAGE NAVIGATION
+// ═══════════════════════════════════════════════════
+
+function showPage(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+}
+
+// Sections are the main content areas inside the app page
+function showSection(name) {
+  document.querySelectorAll('section[id^="section-"]').forEach(s => {
+    s.style.display = 'none';
+  });
+  document.querySelectorAll('.nav-link').forEach(b => {
+    b.classList.remove('active');
+  });
+
+  const section = document.getElementById('section-' + name);
+  const navBtn  = document.getElementById('nav-' + name);
+  if (section) section.style.display = 'block';
+  if (navBtn)  navBtn.classList.add('active');
+
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'sessions')  { populateSubjectDropdowns(); renderTable(); }
+  if (name === 'subjects')  renderSubjectsTable();
+  if (name === 'settings')  populateSettings();
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 6: AUTH
+// ═══════════════════════════════════════════════════
+
+// ── Validation helpers ─────────────────────────────
+
+function showErr(inputId, errId, msg) {
+  const inp = document.getElementById(inputId);
+  const err = document.getElementById(errId);
+  if (inp && msg) inp.style.borderColor = 'var(--red)';
+  if (err) { err.textContent = msg || ''; err.style.display = msg ? 'block' : 'none'; }
+}
+
+function clearErr(inputId, errId) {
+  const inp = document.getElementById(inputId);
+  const err = document.getElementById(errId);
+  if (inp) inp.style.borderColor = '';
+  if (err) { err.textContent = ''; err.style.display = 'none'; }
+}
+
+function isEmail(str) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str); }
+
+// ── Login ──────────────────────────────────────────
+
+function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw    = document.getElementById('loginPw').value;
+  const errBox = document.getElementById('loginErr');
+
+  clearErr('loginEmail', 'loginEmailErr');
+  clearErr('loginPw',    'loginPwErr');
+  errBox.style.display = 'none';
+
+  let ok = true;
+  if (!email)          { showErr('loginEmail','loginEmailErr','Email is required.'); ok = false; }
+  else if (!isEmail(email)) { showErr('loginEmail','loginEmailErr','Enter a valid email address.'); ok = false; }
+  if (!pw)             { showErr('loginPw','loginPwErr','Password is required.'); ok = false; }
+  if (!ok) return;
+
+  const user = allUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (!user || !checkHash(pw, user.passwordHash)) {
+    errBox.textContent = 'Incorrect email or password.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  loginAs(user);
+  bootApp();
+}
+
+// ── Register ───────────────────────────────────────
+
+function doRegister() {
+  const first   = document.getElementById('regFirst').value.trim();
+  const last    = document.getElementById('regLast').value.trim();
+  const email   = document.getElementById('regEmail').value.trim();
+  const pw      = document.getElementById('regPw').value;
+  const confirm = document.getElementById('regConfirm').value;
+  const errBox  = document.getElementById('registerErr');
+
+  ['regFirst','regLast','regEmail','regPw','regConfirm'].forEach(id => {
+    clearErr(id, id + 'Err');
+  });
+  errBox.style.display = 'none';
+
+  let ok = true;
+  if (!first)  { showErr('regFirst','regFirstErr','First name is required.'); ok = false; }
+  if (!last)   { showErr('regLast', 'regLastErr', 'Last name is required.'); ok = false; }
+  if (!email)  { showErr('regEmail','regEmailErr','Email is required.'); ok = false; }
+  else if (!isEmail(email)) { showErr('regEmail','regEmailErr','Enter a valid email address.'); ok = false; }
+  else if (allUsers().find(u => u.email.toLowerCase() === email.toLowerCase())) {
+    showErr('regEmail','regEmailErr','An account with this email already exists.'); ok = false;
+  }
+  if (!pw) { showErr('regPw','regPwErr','Password is required.'); ok = false; }
+  else if (pw.length < 8) { showErr('regPw','regPwErr','Password must be at least 8 characters.'); ok = false; }
+  else if (!/\d/.test(pw)) { showErr('regPw','regPwErr','Password must include at least one number.'); ok = false; }
+  if (pw !== confirm) { showErr('regConfirm','regConfirmErr','Passwords do not match.'); ok = false; }
+  if (!ok) return;
+
+  const newUser = {
+    id: genId(), first, last, email,
+    passwordHash: simulateHash(pw),
+  };
+  const users = allUsers();
+  users.push(newUser);
+  saveUsers(users);
+
+  loginAs(newUser);
+  bootApp();
+}
+
+function doLogout() {
+  clearSession();
+  showPage('page-login');
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPw').value    = '';
+}
+
+// ── Password strength indicator ────────────────────
+
+function updatePwStrength(val) {
+  let score = 0;
+  if (val.length >= 8)  score++;
+  if (val.length >= 12) score++;
+  if (/\d/.test(val))   score++;
+  if (/[^a-zA-Z0-9]/.test(val)) score++;
+
+  const colours = ['', '#c0392b', '#e8960a', '#e8960a', '#2e7d52'];
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('pwBar' + i).style.background =
+      i <= score ? (colours[score] || colours[4]) : 'var(--border)';
+  }
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 7: APP BOOT
+// ═══════════════════════════════════════════════════
+
+function bootApp() {
+  showPage('page-app');
+  document.getElementById('topbarName').textContent =
+    currentUser.first + ' ' + currentUser.last;
+
+  const h = new Date().getHours();
+  const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('dashGreeting').textContent =
+    greeting + ', ' + currentUser.first + ' 👋';
+
+  // Default date for add form
+  document.getElementById('sDate').value = new Date().toISOString().split('T')[0];
+
+  showSection('dashboard');
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 8: DASHBOARD
+// ═══════════════════════════════════════════════════
+
+function renderDashboard() {
+  const sessions = mySessions();
+  const subjects = mySubjects();
+
+  // Stats
+  const totalMins = sessions.reduce((a, s) => a + s.durationMins, 0);
+  document.getElementById('statSessions').textContent  = sessions.length;
+  document.getElementById('statHours').textContent     = (totalMins / 60).toFixed(1) + 'h';
+  document.getElementById('statSubjects').textContent  = subjects.length;
+
+  // Recent 5 sessions
+  const recent = [...sessions]
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 5);
+
+  const el = document.getElementById('dashRecent');
+
+  if (!recent.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>' +
+      '<div class="empty-text">No sessions yet. Go to Sessions to log one.</div></div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Date</th><th>Subject</th><th>Duration</th></tr></thead><tbody>';
+  recent.forEach(s => {
+    const sub = subjects.find(x => x.id === s.subjectId);
+    html += '<tr>';
+    html += '<td>' + escHtml(s.date) + '</td>';
+    html += '<td><span class="badge">' + escHtml(sub ? sub.name : '—') + '</span></td>';
+    html += '<td>' + s.durationMins + ' min</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 9: SESSION CRUD
+// ═══════════════════════════════════════════════════
+
+// ── CREATE: Add new session ────────────────────────
+//
+// SQL equivalent:
+//   INSERT INTO sessions (id, user_id, subject_id, date,
+//     duration_mins, notes, created_at)
+//   VALUES (?, ?, ?, ?, ?, ?, NOW());
+
+function addSession() {
+  const date    = document.getElementById('sDate').value;
+  const subId   = document.getElementById('sSubject').value;
+  const hours   = parseInt(document.getElementById('sHours').value) || 0;
+  const mins    = parseInt(document.getElementById('sMins').value)  || 0;
+  const notes   = document.getElementById('sNotes').value.trim().slice(0, 300);
+  const dur     = hours * 60 + mins;
+  const errBox  = document.getElementById('sessionErr');
+  const okBox   = document.getElementById('sessionOk');
+
+  // Clear previous messages
+  errBox.style.display = 'none';
+  okBox.style.display  = 'none';
+  clearErr('sDate',    'sDateErr');
+  clearErr('sSubject', 'sSubjectErr');
+  clearErr('sHours',   'sDurErr');
+
+  let ok = true;
+  if (!date)   { showErr('sDate',    'sDateErr',    'Date is required.'); ok = false; }
+  if (!subId)  { showErr('sSubject', 'sSubjectErr', 'Please select a subject.'); ok = false; }
+  if (dur <= 0){ showErr('sHours',   'sDurErr',     'Duration must be at least 1 minute.'); ok = false; }
+
+  /*
+    TODO (Band 5): Add these extra validation checks:
+      - Reject future dates:
+          if (date > new Date().toISOString().split('T')[0]) { ... }
+      - Reject unrealistically long sessions (> 8h):
+          if (dur > 480) { ... }
+  */
+
+  if (!ok) return;
+
+  const sessions = allSessions();
+  sessions.push({
+    id: genId(), userId: currentUser.id, subjectId: subId,
+    date, durationMins: dur, notes,
+    createdAt: new Date().toISOString(),
+  });
+  saveSessions(sessions);
+
+  // Clear form
+  document.getElementById('sSubject').value = '';
+  document.getElementById('sHours').value   = '1';
+  document.getElementById('sMins').value    = '30';
+  document.getElementById('sNotes').value   = '';
+
+  // Show success feedback
+  okBox.textContent = '✓ Session saved!';
+  okBox.style.display = 'block';
+  setTimeout(() => { okBox.style.display = 'none'; }, 2500);
+
+  renderTable();
+  renderDashboard();
+}
+
+// ── READ: render sessions table ────────────────────
+//
+// SQL equivalent:
+//   SELECT s.*, sub.name AS subject_name
+//   FROM sessions s
+//   JOIN subjects sub ON s.subject_id = sub.id
+//   WHERE s.user_id = ?
+//     AND (? = '' OR s.subject_id = ?)
+//     AND (? = '' OR sub.name LIKE ? OR s.notes LIKE ?)
+//   ORDER BY s.date DESC;
+
+function renderTable() {
+  const sessions = mySessions();
+  const subjects = mySubjects();
+  const search   = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const filterSub = document.getElementById('filterSubject')?.value || '';
+
+  // Rebuild subject filter dropdown
+  const filterEl = document.getElementById('filterSubject');
+  if (filterEl) {
+    const cur = filterEl.value;
+    filterEl.innerHTML = '<option value="">All subjects</option>' +
+      subjects.map(s =>
+        `<option value="${s.id}"${s.id === cur ? ' selected' : ''}>${escHtml(s.name)}</option>`
+      ).join('');
+  }
+
+  // Join sessions with their subjects (like a SQL JOIN)
+  let rows = sessions.map(s => ({
+    ...s, subject: subjects.find(x => x.id === s.subjectId),
+  }));
+
+  // Apply filters
+  if (filterSub) rows = rows.filter(r => r.subjectId === filterSub);
+  if (search)    rows = rows.filter(r =>
+    (r.subject?.name || '').toLowerCase().includes(search) ||
+    (r.notes || '').toLowerCase().includes(search)
+  );
+
+  // Sort newest first
+  rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const tbody = document.getElementById('sessionsBody');
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5">
+      <div class="empty">
+        <div class="empty-icon">📋</div>
+        <div class="empty-text">${sessions.length
+          ? 'No sessions match your search or filter.'
+          : 'No sessions yet. Use the form above to add one.'}</div>
+      </div></td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${escHtml(r.date)}</td>
+        <td><span class="badge">${escHtml(r.subject?.name || '—')}</span></td>
+        <td style="white-space:nowrap">
+          ${r.durationMins} min
+          <span style="color:var(--text-soft);font-size:12px">
+            (${(r.durationMins / 60).toFixed(1)}h)
+          </span>
+        </td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          title="${escHtml(r.notes || '')}">
+          ${escHtml(r.notes || '—')}
+        </td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-outline btn-sm"
+            onclick="openEditForm('${r.id}')"
+            aria-label="Edit session from ${r.date}">Edit</button>
+          <button class="btn btn-red btn-sm"
+            onclick="deleteSession('${r.id}')"
+            aria-label="Delete session from ${r.date}"
+            style="margin-left:4px">Delete</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  document.getElementById('sessionsCount').textContent =
+    rows.length + ' session' + (rows.length !== 1 ? 's' : '') +
+    (rows.length !== sessions.length ? ' (filtered from ' + sessions.length + ')' : '');
+
+  document.getElementById('sqlHint').textContent =
+    `SQL: SELECT * FROM sessions WHERE user_id = '${currentUser.id.slice(0, 8)}…'`;
+}
+
+// ── UPDATE: open the inline edit form ─────────────
+//
+// SQL equivalent (executed on Save Changes click):
+//   UPDATE sessions
+//   SET subject_id=?, date=?, duration_mins=?, notes=?
+//   WHERE id=? AND user_id=?;
+//   (user_id check prevents editing another user's data)
+
+function openEditForm(id) {
+  const session = mySessions().find(s => s.id === id);
+  if (!session) return;
+
+  document.getElementById('editId').value    = id;
+  document.getElementById('eDate').value     = session.date;
+  document.getElementById('eHours').value    = Math.floor(session.durationMins / 60);
+  document.getElementById('eMins').value     = session.durationMins % 60;
+  document.getElementById('eNotes').value    = session.notes || '';
+
+  populateSubjectDropdowns();
+  document.getElementById('eSubject').value  = session.subjectId;
+
+  document.getElementById('editErr').style.display = 'none';
+  document.getElementById('editFormWrap').classList.add('visible');
+
+  // Scroll to the edit form
+  document.getElementById('editFormWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function saveEdit() {
+  const id     = document.getElementById('editId').value;
+  const date   = document.getElementById('eDate').value;
+  const subId  = document.getElementById('eSubject').value;
+  const hours  = parseInt(document.getElementById('eHours').value) || 0;
+  const mins   = parseInt(document.getElementById('eMins').value)  || 0;
+  const notes  = document.getElementById('eNotes').value.trim().slice(0, 300);
+  const dur    = hours * 60 + mins;
+  const errBox = document.getElementById('editErr');
+
+  errBox.style.display = 'none';
+
+  if (!date || !subId || dur <= 0) {
+    errBox.textContent = 'Date, subject and duration are all required.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  const sessions = allSessions();
+  const idx = sessions.findIndex(s => s.id === id);
+  if (idx !== -1) {
+    sessions[idx].subjectId    = subId;
+    sessions[idx].date         = date;
+    sessions[idx].durationMins = dur;
+    sessions[idx].notes        = notes;
+  }
+  saveSessions(sessions);
+
+  cancelEdit();
+  renderTable();
+  renderDashboard();
+}
+
+function cancelEdit() {
+  document.getElementById('editFormWrap').classList.remove('visible');
+  document.getElementById('editId').value = '';
+}
+
+// ── DELETE: remove a session ───────────────────────
+//
+// SQL equivalent:
+//   DELETE FROM sessions WHERE id = ? AND user_id = ?;
+//
+// Band 4 uses the browser's built-in confirm() dialog.
+// TODO (Band 5): Replace window.confirm() with a custom
+// modal confirmation dialog. The Band 5 version shows a
+// styled modal with Cancel and Delete buttons, which looks
+// more professional and is more accessible.
+
+function deleteSession(id) {
+  const session = mySessions().find(s => s.id === id);
+  const sub     = session ? mySubjects().find(x => x.id === session.subjectId) : null;
+  const label   = sub ? sub.name : 'this session';
+
+  const confirmed = window.confirm(
+    `Delete the ${label} session from ${session?.date || ''}?\nThis cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  saveSessions(allSessions().filter(s => s.id !== id));
+  cancelEdit();
+  renderTable();
+  renderDashboard();
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 10: SUBJECTS CRUD
+// ═══════════════════════════════════════════════════
+
+// SQL: INSERT INTO subjects (id, user_id, name) VALUES (?, ?, ?);
+
+function addSubject() {
+  const name   = document.getElementById('subName').value.trim();
+  const errBox = document.getElementById('subjectErr');
+  const okBox  = document.getElementById('subjectOk');
+
+  errBox.style.display = 'none';
+  okBox.style.display  = 'none';
+  clearErr('subName', 'subNameErr');
+
+  if (!name) {
+    showErr('subName', 'subNameErr', 'Subject name is required.');
+    return;
+  }
+
+  // Check for duplicate subject name for this user
+  if (mySubjects().find(s => s.name.toLowerCase() === name.toLowerCase())) {
+    showErr('subName', 'subNameErr', 'You already have a subject with this name.');
+    return;
+  }
+
+  const subs = allSubjects();
+  subs.push({ id: genId(), userId: currentUser.id, name });
+  saveSubjects(subs);
+
+  document.getElementById('subName').value = '';
+  okBox.textContent = '✓ Subject added.';
+  okBox.style.display = 'block';
+  setTimeout(() => { okBox.style.display = 'none'; }, 2500);
+
+  renderSubjectsTable();
+  populateSubjectDropdowns();
+}
+
+// SQL: UPDATE subjects SET name=? WHERE id=? AND user_id=?;
+
+function renameSubject(id) {
+  const current = mySubjects().find(s => s.id === id);
+  if (!current) return;
+
+  // Band 4 uses window.prompt() for rename.
+  // TODO (Band 5): Replace this with a modal form so the
+  // rename UX matches the rest of the application.
+  const newName = window.prompt('Enter a new name for "' + current.name + '":', current.name);
+  if (!newName || !newName.trim() || newName.trim() === current.name) return;
+
+  const subs = allSubjects();
+  const idx  = subs.findIndex(s => s.id === id);
+  if (idx !== -1) subs[idx].name = newName.trim();
+  saveSubjects(subs);
+
+  renderSubjectsTable();
+  populateSubjectDropdowns();
+}
+
+// SQL: DELETE FROM subjects WHERE id=? AND user_id=?;
+//      DELETE FROM sessions WHERE subject_id=? AND user_id=?;
+
+function deleteSubject(id) {
+  const sub     = mySubjects().find(s => s.id === id);
+  const count   = mySessions().filter(s => s.subjectId === id).length;
+
+  const confirmed = window.confirm(
+    `Delete "${sub?.name}"?\nThis will also delete ${count} linked session${count !== 1 ? 's' : ''}.`
+  );
+  if (!confirmed) return;
+
+  saveSubjects(allSubjects().filter(s => s.id !== id));
+  saveSessions(allSessions().filter(s => s.subjectId !== id));
+
+  renderSubjectsTable();
+  renderTable();
+  renderDashboard();
+  populateSubjectDropdowns();
+}
+
+function renderSubjectsTable() {
+  const subjects = mySubjects();
+  const sessions = mySessions();
+  const tbody    = document.getElementById('subjectsBody');
+
+  if (!subjects.length) {
+    tbody.innerHTML = '<tr><td colspan="4"><div class="empty">' +
+      '<div class="empty-icon">📖</div>' +
+      '<div class="empty-text">No subjects yet. Add one above.</div>' +
+      '</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = subjects.map(sub => {
+    const linked   = sessions.filter(s => s.subjectId === sub.id);
+    const totalMins = linked.reduce((a, s) => a + s.durationMins, 0);
+    return `<tr>
+      <td><strong>${escHtml(sub.name)}</strong></td>
+      <td>${linked.length}</td>
+      <td>${(totalMins / 60).toFixed(1)}h</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-outline btn-sm"
+          onclick="renameSubject('${sub.id}')"
+          aria-label="Rename ${escHtml(sub.name)}">Rename</button>
+        <button class="btn btn-red btn-sm"
+          onclick="deleteSubject('${sub.id}')"
+          aria-label="Delete ${escHtml(sub.name)}"
+          style="margin-left:4px">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// Populate all subject <select> dropdowns on the page
+
+function populateSubjectDropdowns() {
+  const subjects = mySubjects();
+  const opt = '<option value="">— select subject —</option>' +
+    subjects.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+
+  ['sSubject', 'eSubject'].forEach(id => {
+    const el  = document.getElementById(id);
+    const cur = el?.value;
+    if (!el) return;
+    el.innerHTML = opt;
+    if (cur) el.value = cur;
+  });
+
+  // Also rebuild the filter dropdown
+  const f = document.getElementById('filterSubject');
+  if (f) {
+    const cur = f.value;
+    f.innerHTML = '<option value="">All subjects</option>' +
+      subjects.map(s => `<option value="${s.id}"${s.id===cur?' selected':''}>${escHtml(s.name)}</option>`).join('');
+  }
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 11: SETTINGS
+// ═══════════════════════════════════════════════════
+
+function populateSettings() {
+  document.getElementById('setFirst').value = currentUser.first || '';
+  document.getElementById('setLast').value  = currentUser.last  || '';
+  document.getElementById('setEmail').value = currentUser.email || '';
+}
+
+function saveProfile() {
+  const first = document.getElementById('setFirst').value.trim();
+  const last  = document.getElementById('setLast').value.trim();
+
+  const users = allUsers();
+  const idx   = users.findIndex(u => u.id === currentUser.id);
+  if (idx !== -1) {
+    users[idx].first = first;
+    users[idx].last  = last;
+    saveUsers(users);
+    currentUser = users[idx];
+  }
+
+  document.getElementById('topbarName').textContent = first + ' ' + last;
+  const okBox = document.getElementById('profileOk');
+  okBox.textContent = '✓ Profile saved.';
+  okBox.style.display = 'block';
+  setTimeout(() => { okBox.style.display = 'none'; }, 2500);
+}
+
+function changePassword() {
+  const cur  = document.getElementById('curPw').value;
+  const nw   = document.getElementById('newPw').value;
+  const conf = document.getElementById('confPw').value;
+  const errBox = document.getElementById('pwErr');
+  const okBox  = document.getElementById('pwOk');
+
+  errBox.style.display = 'none';
+  okBox.style.display  = 'none';
+
+  if (!checkHash(cur, currentUser.passwordHash)) {
+    errBox.textContent = 'Current password is incorrect.'; errBox.style.display = 'block'; return;
+  }
+  if (nw.length < 8) {
+    errBox.textContent = 'New password must be at least 8 characters.'; errBox.style.display = 'block'; return;
+  }
+  if (!/\d/.test(nw)) {
+    errBox.textContent = 'New password must include at least one number.'; errBox.style.display = 'block'; return;
+  }
+  if (nw !== conf) {
+    errBox.textContent = 'New passwords do not match.'; errBox.style.display = 'block'; return;
+  }
+
+  const users = allUsers();
+  const idx   = users.findIndex(u => u.id === currentUser.id);
+  if (idx !== -1) {
+    users[idx].passwordHash = simulateHash(nw);
+    saveUsers(users);
+    currentUser = users[idx];
+  }
+
+  ['curPw','newPw','confPw'].forEach(id => { document.getElementById(id).value = ''; });
+  okBox.textContent = '✓ Password updated.';
+  okBox.style.display = 'block';
+  setTimeout(() => { okBox.style.display = 'none'; }, 2500);
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 12: UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════
+
+// Escape HTML to prevent XSS when inserting user
+// content into the DOM via innerHTML.
+// This is applied to all user-provided data in the
+// table and dashboard renders above.
+//
+// TODO (Band 5): Audit every use of innerHTML in the
+// codebase and ensure escHtml() is applied consistently.
+// The Band 5 version wraps this in a helper that also
+// handles null/undefined values gracefully.
+
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+
+// ═══════════════════════════════════════════════════
+// PART 13: STARTUP
+// ═══════════════════════════════════════════════════
+
+// Seed the demo account if it doesn't exist yet
+seedDemo();
+
+// Check if a user was already logged in (session restore)
+currentUser = loadSavedUser();
+
+if (currentUser) {
+  bootApp();
+} else {
+  showPage('page-login');
+}
+
+</script>
+</body>
+</html>
