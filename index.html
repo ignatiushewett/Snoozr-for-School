@@ -7,7 +7,7 @@
   <!--
   ╔═══════════════════════════════════════════════════════════╗
   ║  snoozr — HSC Software Engineering Task #2 Prototype      ║
-  ║  Student: [YOUR NAME]          Date: March 2026           ║
+  ║  Student: Ignatius Hewett        Date: March 2026         ║
   ╠═══════════════════════════════════════════════════════════╣
   ║  CRUD STATUS:                                             ║
   ║    CREATE ✓  Log a new sleep entry                        ║
@@ -215,7 +215,7 @@ tbody td{padding:11px 14px;vertical-align:middle}
 <!-- ═══ LOGIN ═══ -->
 <div class="pg a" id="page-login"><div class="ao"><div class="ac">
   <img class="logo logo-auth" src="snoozrwhite.png" alt="snoozr">
-  <div class="at">Track your sleep, at your own pace.</div>
+  <div class="at">Prototype by Ignatius Hewett</div>
   <div class="me" id="loginErr" role="alert"></div>
   <div class="fg"><label class="fl" for="loginEmail">Email <span class="rq">*</span></label><input class="fc" type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email" aria-required="true"><div class="fe" id="loginEmailErr"></div></div>
   <div class="fg"><label class="fl" for="loginPw">Password <span class="rq">*</span></label><input class="fc" type="password" id="loginPw" placeholder="Your password" autocomplete="current-password" aria-required="true"><div class="fe" id="loginPwErr"></div></div>
@@ -315,15 +315,32 @@ tbody td{padding:11px 14px;vertical-align:middle}
 
     <!-- ── AI DISCLOSURE ── -->
     <section id="sec-aidisclosure" style="display:none">
-      <div class="sh"><div><div class="st">AI Disclosure</div><div class="ss">Transparency statement on AI usage in this project.</div></div></div>
+      <div class="sh">
+        <div>
+          <div class="st">AI Disclosure</div>
+          <div class="ss">Transparency statement on AI usage in this project.</div>
+        </div>
+      </div>
+
       <div class="cd">
         <div class="cb">
-          <!-- EDIT YOUR AI DISCLOSURE CONTENT BELOW -->
-          <h1 style="font-size:20px;font-weight:600;margin-bottom:16px;color:var(--tx)">AI Usage Declaration</h1>
-          <p style="color:var(--tx2);line-height:1.7">
 
+          <!-- EDIT YOUR AI DISCLOSURE CONTENT BELOW -->
+          <h1 style="font-size:20px;font-weight:600;margin-bottom:16px;color:var(--tx)">
+            AI Usage Declaration
+          </h1>
+
+          <p style="color:var(--tx2);line-height:1.7">
+            You must complete this log for every use of AI tools during this task. Submitting AI‑generated content without disclosure is academic misconduct. See the Responsible AI Use Policy in the task brief.
           </p>
+
+          <ul style="color:var(--tx2);line-height:1.7;padding-left:20px">
+            <li>Claude was used to help build aspects of Snoozr, although it was mostly built from template projects (<em>studytrack_band5.html</em>), which is present in the GitHub repository, as well as documentation of AI usage in <strong>README.md</strong>.</li>
+            <li>All documentation and graphics were created by myself; no copy‑and‑paste is present in this document. Claude was only used for brainstorming and research, not for writing.</li>
+            <li>The GitHub repository, update and iteration logs, and graphics (including the Snoozr logo) were all created by myself.</li>
+          </ul>
           <!-- END AI DISCLOSURE CONTENT -->
+
         </div>
       </div>
     </section>
